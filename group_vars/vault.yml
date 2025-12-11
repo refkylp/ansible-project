@@ -1,0 +1,5 @@
+---
+# Vault file for sensitive data
+# IMPORTANT: This file should be encrypted using: ansible-vault encrypt group_vars/vault.yml
+vault_db_password: cloud123
+# vault_slack_token: "********"

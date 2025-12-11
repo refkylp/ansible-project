@@ -428,31 +428,8 @@ Host ansible-control-node
 VS Code'da (Control Node'a bağlıyken):
 File → Open Folder → /home/ubuntu/
 
-Açılan klasörde sizinle paylaşılan 'ansible-project'
+Açılan klasörde sizinle paylaşılan 'ansible-project' reposunu çekin.
 ```
-
-
-
-**Artık:**
-- ✅ Dosya yapısını sol tarafta görebilirsiniz
-- ✅ Terminal'i VS Code içinde açabilirsiniz (Ctrl+`)
-- ✅ Dosyaları VS Code editöründe düzenleyebilirsiniz
-- ✅ Extension'ları Control Node'da kullanabilirsiniz
-
-**Adım 5: Kurulumları Kontrol Et**
-```bash
-# VS Code terminal'de (Control Node'da)
-ansible --version
-# ansible [core 2.15.x] görmeli
-
-aws --version
-# aws-cli/2.x.x görmeli
-
-ls -la ~/*.pem
-# SSH key kopyalanmış olmalı
-```
-
----
 
 #### Seçenek 2: Klasik SSH (Alternatif)
 
@@ -476,6 +453,11 @@ chmod 400 your-key-name.pem
 # Security group port 22 açık mı kontrol edin
 ```
 
+**Proje Klasörünü Hazırlayın**
+```bash
+cd /home/ubuntu/
+git clone https://github.com/your-github-name/ansible-project.git
+``` 
 ---
 
 **✨ VS Code Remote SSH Avantajları:**
@@ -486,6 +468,31 @@ chmod 400 your-key-name.pem
 - 🎨 YAML, Python için extension desteği
 - 🐛 Daha kolay debugging
 
+---
+
+**Kurulumları Kontrol Et**
+
+```bash
+# VS Code terminal'de (Control Node'da)
+ansible --version
+# ansible [core 2.15.x] görmeli
+
+aws --version
+# aws-cli/2.x.x görmeli
+
+ls -la ~/*.pem
+# SSH key kopyalanmış olmalı
+```
+
+> NoT: Bu kısımda kurulumlar tamamlanmadıysa terraform maint.tf dosyasındaki null_resource kısmı çalışmamış demektir. Aşağıdaki komutları terraform çalıştırdığınız lokal makinenizde girip kurulumları tamamlayabilirsiniz.
+
+```bash
+# Seçenek 1: Taint kullanarak
+terraform taint null_resource.config
+terraform apply --auto-approve
+
+# Seçenek 2: bir şekilde hata alırsanız kesin çözüm olarak control-node'a bağlanıp terraform maint.tf dosyasındaki null_resource kısmında remote-exec bölümünde yer alan komutları sırayla çalıştırarak manuel olarak kurulumu tamamlayabilirsiniz.
+```
 ---
 
 ## 🎮 Adım 3: Ansible Yapılandırması
@@ -558,8 +565,8 @@ ansible-galaxy collection list | grep -E "amazon.aws|community.general"
 
 **Çıktı:**
 ```
-amazon.aws     6.x.x
-community.general  8.x.x
+amazon.aws     8.x.x
+community.general  9.x.x
 ```
 
 **Neden:** Ansible'ın AWS ile (ALB, EC2) ve Slack ile çalışması için bu koleksiyonlar gerekli.
@@ -569,6 +576,10 @@ community.general  8.x.x
 ### 3.4: Python Boto3 Kur (Control Node'da)
 
 ```bash
+# Control Node'da pip3 kur
+export DEBIAN_FRONTEND=noninteractive
+sudo apt install python3-pip
+
 # Control Node'da - AWS SDK kur
 pip3 install boto3 botocore
 
@@ -576,7 +587,7 @@ pip3 install boto3 botocore
 python3 -c "import boto3; print(boto3.__version__)"
 ```
 
-**Çıktı:** `1.28.x` veya üzeri
+**Çıktı:** `1.42.x` veya üzeri
 
 **Neden:** Ansible'ın AWS API'lerini kullanabilmesi için boto3 gerekli.
 
@@ -757,37 +768,12 @@ ls -la *.sh
 
 ### 4.3: Vault Şifresini Parameter Store'a Kaydet
 
-```bash
-# Control Node'da - Setup script'ini çalıştır
-./setup-vault-password.sh
-```
+> Systems Manager Servisine giderek Parameter Store sekmesini aç ve parametreleri ekle.
 
-**Soru:**
-```
-=== Setup Ansible Vault Password in AWS Parameter Store ===
+PARAMETER_NAME="/ansible/phonebook/vault-password"
+TYPE: SecureString
+VALUE: vault123
 
-Enter your vault password (it will be hidden):
-```
-
-**Güçlü bir şifre girin:** (örn: `MyVaultP@ssw0rd2025!`)
-- Minimum 8 karakter
-- Büyük/küçük harf, rakam, özel karakter
-
-**Şifreyi yazmayacak (güvenlik)** - tekrar soracak:
-```
-Confirm password:
-```
-
-**Başarılı Çıktı:**
-```
-✓ Password successfully stored in Parameter Store: /ansible/phonebook/vault-password
-✓ You can now encrypt your vault file using:
-  ansible-vault encrypt group_vars/vault.yml
-```
-
-**Neden:** Vault şifresini AWS'de güvenli bir şekilde (KMS şifreli) saklıyoruz. Böylece her seferinde şifre girmemize gerek kalmayacak.
-
----
 
 ### 4.4: Vault Dosyasını Encrypt Et
 
@@ -865,26 +851,26 @@ cd /home/ubuntu/ansible-project
 ls -la
 # playbook.yml
 # inventory_aws_ec2.yml  ← Dynamic inventory
-# ansible.cfg
 # roles/
 # group_vars/
 # host_vars/
 # *.sh
 
-# ansible.cfg'de inventory'yi ayarla (tek seferlik)
-nano ansible.cfg
+# .ansible.cfg'de inventory'yi ayarla (tek seferlik)
+nano .ansible.cfg
 ```
 
-**ansible.cfg'ye ekle:**
+**.ansible.cfg'ye ekle:**
 ```ini
 [defaults]
-inventory = inventory_aws_ec2.yml
+inventory = /home/ubuntu/ansible-project/inventory_aws_ec2.yml
 host_key_checking = False
 remote_user = ubuntu
-roles_path = ./roles
+roles_path = /home/ubuntu/ansible-project/roles
 deprecation_warnings = False
 interpreter_python = auto_silent
-vault_password_file = ./get-vault-password.sh
+vault_password_file = /home/ubuntu/ansible-project/get-vault-password.sh
+
 ```
 
 **Kaydet ve test et:**

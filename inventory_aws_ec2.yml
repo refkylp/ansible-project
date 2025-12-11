@@ -33,7 +33,7 @@ keyed_groups:
 compose:
   ansible_host: public_ip_address
   ansible_user: "'ubuntu'"
-  ansible_ssh_private_key_file: "'~/your-key-name.pem'"  # Kendi key isminizi yazın
+  ansible_ssh_private_key_file: "'~/RefiaKeyPair.pem'"  # Kendi key isminizi yazın
   ansible_ssh_common_args: "'-o StrictHostKeyChecking=no'"
 
   # Custom variables

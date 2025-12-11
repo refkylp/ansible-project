@@ -194,7 +194,7 @@
 
 - name: Switch ALB to Green with automatic rollback
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   tags:
     - switch
     - alb

@@ -833,9 +833,13 @@ nano ansible.cfg
 # vault_password_file = ./get-vault-password.sh
 ```
 
-**Neden:** Ansible, vault şifresini bu script'ten otomatik alacak. Artık `--ask-vault-pass` yazmaya gerek yok!
+**kontrol**
 
+```bash
 ansible all -m debug -a "msg='db_password={{ db_password }}, vault_password={{ vault_db_password }}'" --limit db_server_phonebook
+```
+
+**Neden:** Ansible, vault şifresini bu script'ten otomatik alacak. Artık `--ask-vault-pass` yazmaya gerek yok!
 ---
 
 ## 🚀 Adım 5: İlk Deployment
@@ -907,7 +911,7 @@ ansible-playbook playbook.yml --tags db
 **Başarılı Çıktı (Son):**
 ```
 PLAY RECAP *********************************************************************
-db_server_phonebook        : ok=15   changed=8    unreachable=0    failed=0
+db_server_phonebook        : ok=21   changed=8    unreachable=0    failed=0
 ```
 
 **Neden:** Önce sadece veritabanını kuruyoruz. Sorun varsa erken tespit ediyoruz.
@@ -928,6 +932,7 @@ SHOW DATABASES;
 USE phonebook_db;
 SHOW TABLES;
 DESCRIBE phonebook;
+SELECT * FROM phonebook;
 
 # Çıkış
 exit  # MySQL'den çık
@@ -1107,7 +1112,7 @@ http://phonebook-alb-1234567890.us-east-1.elb.amazonaws.com/
 ```bash
 # Şu anki target group
 aws elbv2 describe-listeners \
-  --listener-arns $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].Listeners[0].ListenerArn' --output text) \
+  --load-balancer-arn $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text) \
   --query 'Listeners[0].DefaultActions[0].TargetGroupArn' \
   --output text
 ```
@@ -1126,6 +1131,9 @@ arn:aws:elasticloadbalancing:us-east-1:...:targetgroup/phonebook-tg-blue/...
 ### 6.2: Green'e Switch Yap
 
 ```bash
+# terraform outputlarından fyadalanarak variable değerlerini düzenle 
+cd /home/ubuntu/ansible-project/roles/alb-switch/vars/main.yml
+
 # Control Node'da - ALB switch playbook'unu çalıştır
 cd /home/ubuntu/ansible-project
 ansible-playbook playbook.yml --tags switch

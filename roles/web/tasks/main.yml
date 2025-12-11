@@ -26,7 +26,7 @@
 
 - name: Copy templates folder
   ansible.builtin.copy:
-    src: /home/ubuntu/project/phonebook/templates
+    src: /home/ubuntu/ansible-project/phonebook/templates
     dest: /home/ubuntu/
 
 - name: Install dependencies from requirements file

@@ -1194,7 +1194,7 @@ curl http://phonebook-alb-1234567890.us-east-1.elb.amazonaws.com/health
 **Listener ARN kontrol:**
 ```bash
 aws elbv2 describe-listeners \
-  --listener-arns $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].Listeners[0].ListenerArn' --output text) \
+  --load-balancer-arn $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text) \
   --query 'Listeners[0].DefaultActions[0].TargetGroupArn' \
   --output text
 ```
@@ -1282,7 +1282,7 @@ localhost                  : ok=12   changed=2    unreachable=0    failed=0
 
 # Listener ARN
 aws elbv2 describe-listeners \
-  --listener-arns $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].Listeners[0].ListenerArn' --output text) \
+  --load-balancer-arn $(aws elbv2 describe-load-balancers --names phonebook-alb --query 'LoadBalancers[0].LoadBalancerArn' --output text) \
   --query 'Listeners[0].DefaultActions[0].TargetGroupArn' \
   --output text
 ```

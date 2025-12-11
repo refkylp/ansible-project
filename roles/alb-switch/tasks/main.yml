@@ -120,5 +120,5 @@
           Timestamp: {{ ansible_date_time.iso8601 }}
           Status: {{ deployment_status | default('unknown') | upper }}
           Target: Green Environment
-          Current Active: {{ 'GREEN' if (active_tg | default(current_tg_arn)) == phonebook_tg_green_arn else 'BLUE' }}
+          Current Active: {% if active_tg is defined %}{{ 'GREEN' if active_tg == phonebook_tg_green_arn else 'BLUE' if active_tg == phonebook_tg_blue_arn else 'UNKNOWN' }}{% elif current_tg_arn is defined %}{{ 'GREEN' if current_tg_arn == phonebook_tg_green_arn else 'BLUE' if current_tg_arn == phonebook_tg_blue_arn else 'UNKNOWN' }}{% else %}UNKNOWN{% endif %}
           ==========================================

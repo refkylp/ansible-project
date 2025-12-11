@@ -835,6 +835,7 @@ nano ansible.cfg
 
 **Neden:** Ansible, vault şifresini bu script'ten otomatik alacak. Artık `--ask-vault-pass` yazmaya gerek yok!
 
+ansible all -m debug -a "msg='db_password={{ db_password }}, vault_password={{ vault_db_password }}'" --limit db_server_phonebook
 ---
 
 ## 🚀 Adım 5: İlk Deployment

@@ -1,0 +1,332 @@
+---
+# Phonebook Blue-Green Deployment Playbook
+# Usage:
+#   ansible-playbook playbook.yml                    # Full deployment
+#   ansible-playbook playbook.yml --tags db          # Only database
+#   ansible-playbook playbook.yml --tags blue        # Only blue server
+#   ansible-playbook playbook.yml --tags green       # Only green server
+#   ansible-playbook playbook.yml --tags deploy      # Blue + Green
+#   ansible-playbook playbook.yml --tags switch      # Only ALB switch
+#   ansible-playbook playbook.yml --skip-tags production  # Skip production tasks
+
+- name: Setup database server
+  hosts: db_server_phonebook
+  become: true
+  tags:
+    - db
+    - database
+    - setup
+    - always
+
+  pre_tasks:
+    - name: Pre-flight checks for database server
+      block:
+        - name: Check Python version
+          assert:
+            that:
+              - ansible_python_version is version('3.6', '>=')
+            fail_msg: "Python 3.6 or higher is required"
+            success_msg: "✓ Python version check passed"
+
+        - name: Check available disk space
+          shell: df -h / | tail -1 | awk '{print $5}' | sed 's/%//'
+          register: disk_usage
+          changed_when: false
+
+        - name: Verify sufficient disk space
+          assert:
+            that:
+              - disk_usage.stdout|int < 90
+            fail_msg: "Disk usage is {{ disk_usage.stdout }}% - needs to be below 90%"
+            success_msg: "✓ Disk space check passed ({{ disk_usage.stdout }}% used)"
+
+        - name: Check if required ports are available
+          wait_for:
+            port: 3306
+            state: stopped
+            timeout: 1
+          ignore_errors: yes
+          register: port_check
+
+        - name: Display database server info
+          debug:
+            msg: |
+              ====================================
+              Database Server Pre-Flight Check
+              ====================================
+              Hostname: {{ inventory_hostname }}
+              IP Address: {{ ansible_default_ipv4.address }}
+              OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+              Python: {{ ansible_python_version }}
+              Disk Usage: {{ disk_usage.stdout }}%
+              ====================================
+
+  roles:
+    - common
+    - mysql
+
+  post_tasks:
+    - name: Verify MySQL is running
+      service:
+        name: mysql
+        state: started
+      check_mode: yes
+      register: mysql_status
+
+    - name: Confirm database setup completed
+      debug:
+        msg: "✓ Database server setup completed successfully"
+
+- name: Deploy application to Blue server
+  hosts: blue_server_phonebook
+  become: true
+  tags:
+    - blue
+    - deploy
+    - web
+
+  pre_tasks:
+    - name: Pre-flight checks for Blue server
+      block:
+        - name: Verify database server is accessible
+          wait_for:
+            host: "{{ hostvars['db_server_phonebook']['ansible_default_ipv4']['address'] }}"
+            port: 3306
+            timeout: 30
+          delegate_to: localhost
+
+        - name: Check Python and pip availability
+          command: "{{ item }}"
+          loop:
+            - python3 --version
+            - pip3 --version
+          register: python_check
+          changed_when: false
+          failed_when: false
+
+        - name: Display Blue server info
+          debug:
+            msg: |
+              ====================================
+              Blue Server Pre-Flight Check
+              ====================================
+              Hostname: {{ inventory_hostname }}
+              IP Address: {{ ansible_default_ipv4.address }}
+              DB Server: {{ hostvars['db_server_phonebook']['ansible_default_ipv4']['address'] }}
+              ====================================
+
+  roles:
+    - common
+    - web
+
+  post_tasks:
+    - name: Wait for application to start
+      wait_for:
+        port: 80
+        delay: 5
+        timeout: 30
+      ignore_errors: yes
+
+    - name: Test Blue application endpoint
+      uri:
+        url: "http://localhost/"
+        status_code: 200
+      register: blue_test
+      ignore_errors: yes
+
+    - name: Display Blue deployment status
+      debug:
+        msg: "{{ '✓ Blue server deployment successful' if blue_test.status == 200 else '⚠ Blue server may have issues' }}"
+
+- name: Deploy application to Green server
+  hosts: green_server_phonebook
+  become: true
+  tags:
+    - green
+    - deploy
+    - web
+
+  pre_tasks:
+    - name: Pre-flight checks for Green server
+      block:
+        - name: Verify database server is accessible
+          wait_for:
+            host: "{{ hostvars['db_server_phonebook']['ansible_default_ipv4']['address'] }}"
+            port: 3306
+            timeout: 30
+          delegate_to: localhost
+
+        - name: Display Green server info
+          debug:
+            msg: |
+              ====================================
+              Green Server Pre-Flight Check
+              ====================================
+              Hostname: {{ inventory_hostname }}
+              IP Address: {{ ansible_default_ipv4.address }}
+              DB Server: {{ hostvars['db_server_phonebook']['ansible_default_ipv4']['address'] }}
+              ====================================
+
+  roles:
+    - common
+    - web
+
+  post_tasks:
+    - name: Wait for application to start
+      wait_for:
+        port: 80
+        delay: 5
+        timeout: 30
+      ignore_errors: yes
+
+    - name: Test Green application endpoint
+      uri:
+        url: "http://localhost/"
+        status_code: 200
+      register: green_test
+      ignore_errors: yes
+      retries: 3
+      delay: 5
+
+    - name: Display Green deployment status
+      debug:
+        msg: "{{ '✓ Green server deployment successful' if green_test.status == 200 else '⚠ Green server may have issues' }}"
+
+- name: Switch ALB to Green with automatic rollback
+  hosts: localhost
+  gather_facts: true
+  tags:
+    - switch
+    - alb
+    - production
+
+  pre_tasks:
+    - name: Pre-switch validations
+      block:
+        - name: Verify AWS CLI is available
+          command: aws --version
+          register: aws_cli_check
+          changed_when: false
+
+        - name: Check IAM permissions
+          command: >
+            aws sts get-caller-identity
+          register: iam_check
+          changed_when: false
+
+        - name: Display switch information
+          debug:
+            msg: |
+              ====================================
+              ALB Switch Pre-Flight Check
+              ====================================
+              AWS CLI: Installed
+              IAM Identity: {{ (iam_check.stdout | from_json).Arn }}
+              Target: Green Environment
+              ====================================
+
+  roles:
+    - alb-switch
+
+  post_tasks:
+    - name: Final verification
+      debug:
+        msg: |
+          ====================================
+          Deployment Complete
+          ====================================
+          All tasks completed successfully!
+          Check /var/log/ansible-deployment.log for details
+          ====================================
+
+
+#  db hazır olana kadar bekle ve web server ı deploy etme bu şeklde daha koşay olur mu
+
+# - name: Deploy Database Server
+#   hosts: db_server
+#   become: true
+#   tasks:
+#     - name: Import database tasks (always runs)
+#       import_tasks: ./tasks/db_tasks.yml
+#       tags: database
+
+#   handlers:
+#     - name: Restart mysql
+#       service:
+#         name: mysql
+#         state: restarted
+
+# - name: Verify Database is Ready
+#   hosts: db_server
+#   become: true
+#   tasks:
+#     - name: Wait for MySQL port to be ready
+#       wait_for:
+#         port: 3306
+#         host: "{{ ansible_default_ipv4.address }}"
+#         state: started
+#         timeout: 60
+#         delay: 5
+#       register: mysql_ready
+
+#     - name: Show database status
+#       debug:
+#         msg: "MySQL is ready on {{ ansible_default_ipv4.address }}:3306"
+
+# - name: Gather facts from db_server  
+#   hosts: db_server
+#   gather_facts: true
+#   tasks:
+#     - name: Ensure facts are gathered
+#       debug:
+#         msg: "DB Server facts gathered successfully"
+
+# - name: Deploy Web Server (Conditional)
+#   hosts: web_server
+#   tasks:
+#     - name: Check if database is accessible from web server
+#       wait_for:
+#         host: "{{ hostvars['db_server']['ansible_default_ipv4']['address'] }}"
+#         port: 3306
+#         state: started
+#         timeout: 10
+#         delay: 2
+#       register: db_connection_check
+#       ignore_errors: yes
+
+#     - name: Show database connection status
+#       debug:
+#         msg: >
+#           Database connection status: 
+#           {% if db_connection_check is succeeded %}
+#           ✅ Connected - Proceeding with web server setup
+#           {% else %}
+#           ❌ Failed - Skipping web server setup
+#           {% endif %}
+
+#     - name: Deploy web application (only if DB is ready)
+#       include_tasks: ./tasks/web_tasks.yml
+#       when: db_connection_check is succeeded
+#       tags: webserver
+
+
+# ya da böyle
+
+# - name: Advanced database health check
+#   hosts: web_server
+#   tasks:
+#     - name: Test database connection with credentials
+#       shell: |
+#         mysql -h {{ hostvars['db_server']['ansible_default_ipv4']['address'] }} \
+#               -u {{ db_user }} \
+#               -p{{ db_password }} \
+#               -e "SELECT 1"
+#       register: db_health_check
+#       ignore_errors: yes
+#       no_log: true  # Şifreyi loglamaz
+
+#     - name: Deploy web app only if DB is healthy
+#       include_tasks: ./tasks/web_tasks.yml
+#       when: 
+#         - db_health_check is succeeded
+#         - db_health_check.rc == 0

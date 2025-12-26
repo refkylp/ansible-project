@@ -1,0 +1,124 @@
+---
+# Blue-Green Deployment with Error Handling
+- name: Attempt Blue-Green deployment with automatic rollback
+  block:
+    - name: Check Green target group health
+      include_tasks: check_health.yml
+
+    - name: Fail fast if Green is not healthy
+      fail:
+        msg: "Green server is not healthy (status: {{ app_response.status }}). Aborting deployment."
+      when: not green_is_healthy
+
+    - name: Get current listener configuration
+      command: >
+        aws elbv2 describe-listeners --listener-arns {{ alb_listener_arn }} --region {{ region }}
+      register: listener_info
+      changed_when: false
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"
+
+    - name: Extract current target group ARN
+      set_fact:
+        current_tg_arn: "{{ (listener_info.stdout | from_json).Listeners[0].DefaultActions[0].TargetGroupArn }}"
+
+    - name: Display current configuration
+      debug:
+        msg: "Current target group: {{ 'GREEN' if current_tg_arn == phonebook_tg_green_arn else 'BLUE' }}"
+
+    - name: Switch ALB to Green target group
+      command: >
+        aws elbv2 modify-listener
+        --listener-arn {{ alb_listener_arn }}
+        --default-actions Type=forward,TargetGroupArn={{ phonebook_tg_green_arn }}
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"
+      when: green_is_healthy
+      register: switch_result
+
+    - name: Verify switch was successful
+      command: >
+        aws elbv2 describe-listeners --listener-arns {{ alb_listener_arn }} --region {{ region }}
+      register: verify_listener
+      changed_when: false
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"
+
+    - name: Confirm Green is active
+      set_fact:
+        active_tg: "{{ (verify_listener.stdout | from_json).Listeners[0].DefaultActions[0].TargetGroupArn }}"
+
+    - name: Assert Green deployment succeeded
+      assert:
+        that:
+          - active_tg == phonebook_tg_green_arn
+        success_msg: "✓ Successfully switched to GREEN environment"
+        fail_msg: "✗ Failed to switch to GREEN environment"
+
+    - name: Notify success
+      set_fact:
+        deployment_status: "success"
+
+    # - name: Trigger Slack success notification
+    #   command: /bin/true
+    #   notify: slack_success
+    #   changed_when: true
+
+  rescue:
+    - name: Deployment failed - initiating rollback to Blue
+      debug:
+        msg: "⚠ Deployment to Green failed. Rolling back to Blue..."
+
+    - name: Rollback to Blue target group
+      command: >
+        aws elbv2 modify-listener
+        --listener-arn {{ alb_listener_arn }}
+        --default-actions Type=forward,TargetGroupArn={{ phonebook_tg_blue_arn }}
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"
+      register: rollback_result
+
+    - name: Verify rollback was successful
+      command: >
+        aws elbv2 describe-listeners --listener-arns {{ alb_listener_arn }} --region {{ region }}
+      register: verify_rollback
+      changed_when: false
+      environment:
+        AWS_DEFAULT_REGION: "{{ region }}"
+
+    - name: Confirm Blue is active after rollback
+      assert:
+        that:
+          - "(verify_rollback.stdout | from_json).Listeners[0].DefaultActions[0].TargetGroupArn == phonebook_tg_blue_arn"
+        success_msg: "✓ Successfully rolled back to BLUE environment"
+        fail_msg: "✗ Critical: Rollback failed!"
+
+    - name: Set deployment status
+      set_fact:
+        deployment_status: "rollback"
+
+    # - name: Trigger Slack rollback notification
+    #   command: /bin/true
+    #   notify: slack_rollback
+    #   changed_when: true
+
+  always:
+    - name: Record deployment attempt in log
+      lineinfile:
+        path: /var/log/ansible-deployment.log
+        line: "{{ ansible_date_time.iso8601 }} - Deployment Status: {{ deployment_status | default('unknown') }} - Target: Green"
+        create: yes
+      delegate_to: localhost
+      ignore_errors: yes
+
+    - name: Display final deployment status
+      debug:
+        msg: |
+          ==========================================
+          Deployment Summary
+          ==========================================
+          Timestamp: {{ ansible_date_time.iso8601 }}
+          Status: {{ deployment_status | default('unknown') | upper }}
+          Target: Green Environment
+          Current Active: {% if active_tg is defined %}{{ 'GREEN' if active_tg == phonebook_tg_green_arn else 'BLUE' if active_tg == phonebook_tg_blue_arn else 'UNKNOWN' }}{% elif current_tg_arn is defined %}{{ 'GREEN' if current_tg_arn == phonebook_tg_green_arn else 'BLUE' if current_tg_arn == phonebook_tg_blue_arn else 'UNKNOWN' }}{% else %}UNKNOWN{% endif %}
+          ==========================================

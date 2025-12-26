@@ -1,0 +1,12 @@
+---
+# vars file for /home/ubuntu/project/roles/alb-switch
+slack_enabled: true
+region: "us-east-1"
+phonebook_tg_green_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-green/e36d59903d864d98"
+phonebook_tg_blue_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-blue/9a494508400f2275"
+subnet_ids: "subnet-ac01fba2,subnet-ac01fba2"
+security_group_id: "sg-0fbfbea14c5e4c187"
+alb_listener_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:listener/app/phonebook-alb/0b9a210577133371/82bb6d6f59d5e74f"
+# slack_token: "{{ vault_slack_token }}"
+# slack_channel: "#çalışma-egzersiz"
+green_server_phonebook_ip: "44.221.70.115"

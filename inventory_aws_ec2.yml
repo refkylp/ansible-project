@@ -1,0 +1,58 @@
+---
+# AWS EC2 Dynamic Inventory Configuration
+# This file enables Ansible to automatically discover EC2 instances
+# Usage: ansible-playbook playbook.yml -i inventory_aws_ec2.yml
+
+plugin: amazon.aws.aws_ec2
+
+# AWS Region
+regions:
+  - us-east-1
+
+# Filter instances - only running instances with phonebook tag
+filters:
+  tag:Project: phonebook
+  instance-state-name: running
+
+# Create groups based on tags
+keyed_groups:
+  # Group by Role tag (db_server, blue_server, green_server)
+  - key: tags.Role
+    prefix: ""
+    separator: "_phonebook"
+
+  # Group by Color tag (blue, green)
+  - key: tags.Color
+    prefix: color
+
+  # Group by Environment tag
+  - key: tags.Environment
+    prefix: env
+
+# Compose variables from instance attributes
+compose:
+  ansible_host: public_ip_address
+  ansible_user: "'ubuntu'"
+  ansible_ssh_private_key_file: "'~/your-key-name.pem'"  # Kendi key isminizi yazın
+  ansible_ssh_common_args: "'-o StrictHostKeyChecking=no'"
+
+  # Custom variables
+  ec2_instance_type: instance_type
+  ec2_availability_zone: placement.availability_zone
+  ec2_private_ip: private_ip_address
+  ec2_public_ip: public_ip_address
+  ec2_instance_id: instance_id
+
+# Hostnames - use Name tag or instance ID
+hostnames:
+  - tag:Name
+  - instance-id
+
+# Use strict mode to fail if AWS credentials are not configured
+strict: False
+
+# Cache the inventory for better performance
+cache: True
+cache_plugin: jsonfile
+cache_timeout: 300
+cache_connection: /tmp/ansible-aws-cache

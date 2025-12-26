@@ -1,0 +1,53 @@
+---
+# Health check with retry logic
+- name: Check Green server health endpoint with retries
+  uri:
+    url: "http://{{ green_server_phonebook_ip }}:80/health"
+    return_content: true
+    status_code: 200
+    timeout: 10
+  register: app_response
+  changed_when: false
+  failed_when: false
+  retries: 5
+  delay: 10
+  until: app_response.status == 200 and (app_response.json.status | default('')) == 'healthy'
+
+- name: Parse health check response
+  set_fact:
+    health_data: "{{ app_response.json | default({}) }}"
+  when: app_response.status == 200
+
+- name: Display detailed health information
+  debug:
+    msg: |
+      ==========================================
+      Green Server Health Check
+      ==========================================
+      HTTP Status: {{ app_response.status | default('unknown') }}
+      App Status: {{ health_data.status | default('unknown') }}
+      Environment: {{ health_data.environment | default('unknown') }}
+      Database: {{ health_data.database.status | default('unknown') }}
+      ==========================================
+
+- name: Set green_is_healthy based on comprehensive checks
+  set_fact:
+    green_is_healthy: true
+  when:
+    - app_response.status == 200
+    - health_data.status is defined
+    - health_data.status == 'healthy'
+    - health_data.database.status == 'connected'
+
+- name: Set green_is_healthy to false if checks failed
+  set_fact:
+    green_is_healthy: false
+  when: >
+    app_response.status != 200 or
+    health_data.status is not defined or
+    health_data.status != 'healthy' or
+    health_data.database.status != 'connected'
+
+- name: Display final health status
+  debug:
+    msg: "Green server is {{ 'HEALTHY ✓' if green_is_healthy else 'UNHEALTHY ✗' }}"

@@ -3,4 +3,4 @@
 - name: Gather facts from db_server
   ansible.builtin.setup:
   delegate_to: "{{ item }}"
-  loop: "{{ groups['db_server'] }}"
+  loop: "{{ groups['db_server_phonebook'] }}"

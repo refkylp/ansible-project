@@ -59,10 +59,10 @@
       set_fact:
         deployment_status: "success"
 
-    # - name: Trigger Slack success notification
-    #   command: /bin/true
-    #   notify: slack_success
-    #   changed_when: true
+    - name: Trigger Slack success notification
+      command: /bin/true
+      notify: slack_success
+      changed_when: true
 
   rescue:
     - name: Deployment failed - initiating rollback to Blue
@@ -97,10 +97,10 @@
       set_fact:
         deployment_status: "rollback"
 
-    # - name: Trigger Slack rollback notification
-    #   command: /bin/true
-    #   notify: slack_rollback
-    #   changed_when: true
+    - name: Trigger Slack rollback notification
+      command: /bin/true
+      notify: slack_rollback
+      changed_when: true
 
   always:
     - name: Record deployment attempt in log

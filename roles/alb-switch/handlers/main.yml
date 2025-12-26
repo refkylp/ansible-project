@@ -3,7 +3,7 @@
 - name: slack_success
   community.general.slack:
     token: "{{ slack_token }}"
-    msg: ":white_check_mark: Green versiyona başarıyla geçildi :rocket:"
+    msg: ":white_check_mark: {{ your_name }} Green versiyona başarıyla geçildi :rocket:"
     channel: "{{ slack_channel }}"
     username: "Ansible"
   delegate_to: localhost
@@ -13,7 +13,7 @@
 - name: slack_rollback
   community.general.slack:
     token: "{{ slack_token }}"
-    msg: ":warning: Green versiyon başarısız oldu. Rollback ile Blue versiyona dönüldü :arrow_backward:"
+    msg: ":warning: {{ your_name }} Green versiyon başarısız oldu. Rollback ile Blue versiyona dönüldü :arrow_backward:"
     channel: "{{ slack_channel }}"
     username: "Ansible"
   delegate_to: localhost

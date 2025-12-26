@@ -2,12 +2,12 @@
 # vars file for /home/ubuntu/project/roles/alb-switch
 slack_enabled: true
 region: "us-east-1"
-phonebook_tg_green_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-green/18ebe071a5af53ae"
-phonebook_tg_blue_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-blue/9e96c0e44bcced1b"
-subnet_ids: "subnet-48b9b666"
-security_group_id: "sg-0e79746a611f7ab76"
-alb_listener_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:listener/app/phonebook-alb/8904d5290f50e3ac/639aab52e28bd29a"
+phonebook_tg_green_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-green/8e900298dcc18035"
+phonebook_tg_blue_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:targetgroup/phonebook-tg-blue/b4454bdb965fe14a"
+subnet_ids: "subnet-ac01fba2"
+security_group_id: "sg-04e77fce4ecd581f6"
+alb_listener_arn: "arn:aws:elasticloadbalancing:us-east-1:623402582673:listener/app/phonebook-alb/83acea40370005ee/9af6db75022071f1"
 slack_token: "{{ vault_slack_token }}"
 slack_channel: "#ansible-project"
-green_server_phonebook_ip: "3.94.173.118"
+green_server_phonebook_ip: "34.238.191.86"
 your_name: "Refia"
